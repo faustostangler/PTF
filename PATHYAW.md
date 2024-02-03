@@ -1,12 +1,26 @@
-PATHWAY
-* COMPANIES
+# PATHWAY
+## STRUCTURE
+General structure of multipage dash app
+
+## DATA
+### COMPANIES
 load local
 load online
 merge
 save local
 
 
-PATHWAY_LEGACY
+
+## DASH PAGES
+
+
+## PLOTLY
+
+
+## PORTFOLIO
+
+
+# LEGACY PATHWAY
 
 * LOAD DATABASE
 

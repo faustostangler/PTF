@@ -1,5 +1,6 @@
 .git/*
 .venv/*
+assets/chromedriver-win64/*
 credentials/*
 datasets/*
 *.7z

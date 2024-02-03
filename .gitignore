@@ -1,8 +1,7 @@
-/.venv
-*/__pycache__/*
-__pycache__/*
-*/credentials/*
-/*datasets/*
+.git/*
+.venv/*
+credentials/*
+datasets/*
 *.7z
 *.zip
 *.pkl

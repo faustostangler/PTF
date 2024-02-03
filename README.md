@@ -1,8 +1,10 @@
 # Análise Fundamentalista B3 by FS
 
 ## Brief Description of App
+.
 
-## Description of Key Components:
+## For Coders
+### Description of Key Components:
 *app.py:* Initializes the Dash application and includes configurations that are common across the application.
 
 *index.py:* Serves as the main layout file where different pages are assembled and routed.
@@ -21,7 +23,7 @@
 
 *tests/:* Contains test cases and test suites to ensure your application behaves as expected.
 
-## Best Practices:
+### Best Practices:
 *Security:* Keep your credentials/ secure and never commit sensitive information to version control.
 
 *Modularity:* By separating pages into different modules, you can work on one page without affecting others, making the app scalable and easier to manage.

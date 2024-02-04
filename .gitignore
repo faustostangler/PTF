@@ -16,3 +16,4 @@ datasets/*
 *.jpeg
 *.htm
 *.html
+*.pyc

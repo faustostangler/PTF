@@ -603,12 +603,12 @@ def grab_nsd(nsd):
 ## RAD DATA
 def load_rad(df_nsd, df_rad=''):
 	try:
-		# rad_local
+		# rad_local # o concat é para enquanto toda a base está sendo construída/baixasda
 		df_rad = load_parquet('rad')
 
 		new_items = rad_filter_new_items(df_nsd, df_rad)
 
-		df_rad_web = grab_rad(new_items)
+		df_rad_web = grab_rad(df_rad, new_items)
 
 		# concat both and save as 'rad'
 		df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()
@@ -644,6 +644,8 @@ def rad_filter_new_items(df_nsd, df_rad):
 		df_rad['nsd'] = df_rad['url'].str.extract('Documento=(\d+)').astype(int)
 
 		# Merge the dataframes to find new entries in df_nsd compared to df_rad
+		df_nsd_filtered['trimestre'] = pd.to_datetime(df_nsd_filtered['trimestre'], format='%Y-%m-%d')
+		df_rad['trimestre'] = pd.to_datetime(df_rad['trimestre'], format='%Y-%m-%d')
 		merged_df = pd.merge(df_nsd_filtered, df_rad, on=columns, how='outer', suffixes=('', '_rad')).fillna(0)
 
 		# Filter for rows where df_nsd's NSD number is greater than df_rad's, indicating newer documents
@@ -664,7 +666,7 @@ def rad_filter_new_items(df_nsd, df_rad):
 
 	return df_new_items
 
-def grab_rad(new_items):
+def grab_rad(df_rad, new_items):
 	size = len(new_items)
 	try:
 		# Iniciar o processo de coleta de dados da web
@@ -685,25 +687,24 @@ def grab_rad(new_items):
 			acoes = grab_acoes(driver, wait, companhia, trimestre, url)
 			df_ind = grab_demo_fin(driver, wait, companhia, trimestre, url, "DFs Individuais")
 			df_con = grab_demo_fin(driver, wait, companhia, trimestre, url, "DFs Consolidadas")
-			# df_ind = pd.DataFrame(columns=b3.columns['acoes'])
-			# df_con = pd.DataFrame(columns=b3.columns['acoes'])
-			# print('fast debug df_ind, df_con')
 
 			rad_web.extend([acoes, df_ind, df_con])
 
 			print(remaining_time(start_time, size, j), companhia, trimestre)
 
 			# partial save
-			# if j >= 0: # b3.bin_size * 10
-			if (size - i - 1) % b3.bin_size/5 == 0:
+			if j >= 0: # b3.bin_size * 10
+			# if (size - i - 1) % b3.bin_size/5 == 0:
 				df_web = pd.concat(rad_web, ignore_index=True)
 				df_rad_web = pd.concat([df_rad_web, df_web], ignore_index=True)
 				rad_web = []
 
+				df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()[b3.columns['rad']]
+				df_rad = df_rad.sort_values(by=['companhia', 'trimestre'], ascending=[True, True])
 				if size - i - 1 == 0:
-					df_rad_web = save_parquet(df_rad_web, 'rad_web', upload=True)
+					df_rad = save_parquet(df_rad, 'rad', upload=True)
 				else:
-					df_rad_web = save_parquet(df_rad_web, 'rad_web', upload=False)
+					df_rad = save_parquet(df_rad, 'rad', upload=False)
 
 			if j >= b3.bin_size * 10:
 				print('break')
@@ -713,8 +714,10 @@ def grab_rad(new_items):
 		print('## Será que DF Individuais ou DF Consolidadas não existiram?? Ajuste as try except')
 		pass
 
-	df_rad_web = save_parquet(df_rad_web, 'rad_web', upload=True)
-	return df_rad_web
+	df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()[b3.columns['rad']]
+	df_rad = df_rad.sort_values(by=['companhia', 'trimestre'], ascending=[True, True])
+	df_rad = save_parquet(df_rad, 'rad', upload=True)
+	return df_rad
 
 def grab_acoes(driver, wait, companhia, trimestre, url):
 	"""
@@ -809,7 +812,7 @@ def grab_demo_fin(driver, wait, companhia, trimestre, url, df):
 		dfs = pd.concat(dados, ignore_index=True)  # Set ignore_index=True to reset the index
 
 	except Exception as e:
-		dfs = []
+		dfs = pd.DataFrame(columns=b3.columns['acoes'])
 
 	return dfs
 

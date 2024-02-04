@@ -1,5 +1,8 @@
 import assets.helper as b3
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import os
 import sys
 import datetime
@@ -22,19 +25,35 @@ import unidecode
 import string
 import re
 
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.common.alert import Alert
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+
 
 # SYSTEM LOAD
 def load_system(value):
-	# load df_nsd
-	df_nsd = load_nsd()
+	# # load df_nsd
+	# df_nsd = load_nsd()
+	df_nsd = load_parquet('nsd')
+	print('fast debug df_nsd')
 
-	# load df_acoes
-	df_acoes = load_acoes(df_nsd)
+	# load df_rad
+	df_rad = load_rad(df_nsd)
 
-	# database full
-	df = load_database()
+
+	# # load df_acoes
+	# df_acoes = load_acoes(df_nsd)
+
+	# # database full
+	# df = load_database()
 
 
 	return value
@@ -59,87 +78,134 @@ def check_or_create_folder(folder):
 	return folder
 
 def beep(frequency=5000, duration=50):
-    """
-    Generate a system beep sound with the specified frequency and duration.
+	"""
+	Generate a system beep sound with the specified frequency and duration.
 
-    Args:
-        frequency (int): The frequency of the beep sound in Hertz (default is 5000 Hz).
-        duration (int): The duration of the beep sound in milliseconds (default is 50 ms).
+	Args:
+		frequency (int): The frequency of the beep sound in Hertz (default is 5000 Hz).
+		duration (int): The duration of the beep sound in milliseconds (default is 50 ms).
 
-    Returns:
-        bool: True if the beep was successful, False otherwise.
-    """
-    winsound.Beep(frequency, duration)
-    return True
+	Returns:
+		bool: True if the beep was successful, False otherwise.
+	"""
+	winsound.Beep(frequency, duration)
+	return True
 
 def remaining_time(start_time, size, i):
-    """
-    Calculate the remaining time for a process based on its progress.
+	"""
+	Calculate the remaining time for a process based on its progress.
 
-    Args:
-        start_time (float): The start time of the process in seconds.
-        size (int): The total number of items in the process.
-        i (int): The current index or progress of the process.
+	Args:
+		start_time (float): The start time of the process in seconds.
+		size (int): The total number of items in the process.
+		i (int): The current index or progress of the process.
 
-    Returns:
-        str: A formatted string indicating the progress and remaining time.
+	Returns:
+		str: A formatted string indicating the progress and remaining time.
 
-    """
-    # Calculate the number of remaining items
-    counter = i + 1
-    remaining_items = size - counter
-    
-    # Calculate the percentage of completion
-    percentage = counter / size
-    
-    # Calculate the elapsed time
-    running_time = time.time() - start_time
-    
-    # Calculate the average time taken per item
-    avg_time_per_item = running_time / counter
-    
-    # Calculate the remaining time based on the average time per item
-    remaining_time = remaining_items * avg_time_per_item
-    
-    # Convert remaining time to hours, minutes, and seconds
-    hours, remainder = divmod(int(remaining_time), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    
-    # Format remaining time as a string
-    remaining_time_formatted = f'{int(hours)}h {int(minutes):02}m {int(seconds):02}s'
-    
-    # Create a progress string with all the calculated values
-    progress = (
-        f'{percentage:.2%} '
-        f'{counter}+{remaining_items}, '
-        f'{avg_time_per_item:.6f}s per item, '
-        f'Remaining: {remaining_time_formatted}'
-    )
+	"""
+	# Calculate the number of remaining items
+	counter = i + 1
+	remaining_items = size - counter
+	
+	# Calculate the percentage of completion
+	percentage = counter / size
+	
+	# Calculate the elapsed time
+	running_time = time.time() - start_time
+	
+	# Calculate the average time taken per item
+	avg_time_per_item = running_time / counter
+	
+	# Calculate the remaining time based on the average time per item
+	remaining_time = remaining_items * avg_time_per_item
+	
+	# Convert remaining time to hours, minutes, and seconds
+	hours, remainder = divmod(int(remaining_time), 3600)
+	minutes, seconds = divmod(remainder, 60)
+	
+	# Format remaining time as a string
+	remaining_time_formatted = f'{int(hours)}h {int(minutes):02}m {int(seconds):02}s'
+	
+	# Create a progress string with all the calculated values
+	progress = (
+		f'{percentage:.2%} '
+		f'{counter}+{remaining_items}, '
+		f'{avg_time_per_item:.6f}s per item, '
+		f'Remaining: {remaining_time_formatted}'
+	)
 
-    beep()  # Function to generate a system beep
+	beep()  # Function to generate a system beep
 
-    return progress
+	return progress
 
 def header_random():
-    """
-    Generate random HTTP headers for simulating different user agents, referers, and languages.
+	"""
+	Generate random HTTP headers for simulating different user agents, referers, and languages.
 
-    Returns:
-        dict: A dictionary containing randomly chosen 'User-Agent', 'Referer', and 'Accept-Language' headers.
-    """
-    # Randomly select a user agent, referer, and language from predefined lists
-    user_agent = random.choice(b3.USER_AGENTS)
-    referer = random.choice(b3.REFERERS)
-    language = random.choice(b3.LANGUAGES)
+	Returns:
+		dict: A dictionary containing randomly chosen 'User-Agent', 'Referer', and 'Accept-Language' headers.
+	"""
+	# Randomly select a user agent, referer, and language from predefined lists
+	user_agent = random.choice(b3.USER_AGENTS)
+	referer = random.choice(b3.REFERERS)
+	language = random.choice(b3.LANGUAGES)
 
-    # Create a dictionary with the selected headers
-    headers = {
-        'User-Agent': user_agent,
-        'Referer': referer,
-        'Accept-Language': language
-    }
+	# Create a dictionary with the selected headers
+	headers = {
+		'User-Agent': user_agent,
+		'Referer': referer,
+		'Accept-Language': language
+	}
 
-    return headers
+	return headers
+
+def load_browser(chromedriver_path='', download_directory=None, driver_wait_time=5):
+	"""
+	Launches chromedriver and creates a wait object.
+	
+	Parameters:
+	- chromedriver_path (str): The path to the chromedriver executable.
+	- driver_wait_time (int): The time to wait for elements to appear.
+	
+	Returns:
+	tuple: A tuple containing a WebDriver instance and a WebDriverWait instance.
+	"""
+	chromedriver_path = b3.chromedriver_path
+
+	try:
+		# Define the options for the ChromeDriver.
+		options = webdriver.ChromeOptions()
+		if download_directory:
+			options.add_experimental_option('prefs', {
+				"download.default_directory": download_directory,
+				"download.prompt_for_download": False,
+				"download.directory_upgrade": True,
+				"safebrowsing.enabled": True
+			})
+		# options.add_argument('--headless')  # Run in headless mode.
+		options.add_argument('--no-sandbox')  # Avoid sandboxing.
+		options.add_argument('--disable-dev-shm-usage')  # Disable shared memory usage.
+		options.add_argument('--disable-blink-features=AutomationControlled')  # Disable automated control.
+		options.add_argument('start-maximized')  # Maximize the window on startup.
+
+		# Initialize the ChromeDriver.
+		# driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+		# driver = webdriver.Chrome(executable_path=chromedriver_path, options=options)
+		service = Service(executable_path=chromedriver_path)
+		driver = webdriver.Chrome(service=service, options=options)
+
+		# Define the exceptions to ignore during WebDriverWait.
+		exceptions_ignore = (NoSuchElementException, StaleElementReferenceException)
+		
+		# Create a WebDriverWait instance for the driver, using the specified wait time and exceptions to ignore.
+		wait = WebDriverWait(driver, driver_wait_time, ignored_exceptions=exceptions_ignore)
+	except Exception as e:
+		print(f"Error initializing browser: {str(e)}")
+		return None, None
+	
+	# Return a tuple containing the driver and the wait object.
+	return driver, wait
 
 
 ## File Management
@@ -164,7 +230,9 @@ def load_parquet(df_name):
 			df = pd.read_parquet(filepath)  # Try to read the file as a Parquet file.
 			df = upload_to_gcs(df, df_name)  # Upload to Google Cloud Storage if successful.
 		except Exception as e:
-			df = pd.DataFrame(columns=b3.columns['nsd'])  # Create an empty DataFrame as a fallback.
+			df = pd.DataFrame(columns=b3.columns[df_name])  # Create an empty DataFrame as a fallback.
+
+	print(f'load {df_name}')
 
 	return df
 
@@ -186,6 +254,8 @@ def save_parquet(df, df_name, upload=True):
 			df = upload_to_gcs(df, df_name)  # Upload to Google Cloud Storage if specified.
 	except Exception as e:
 		pass
+
+	print(f'save {df_name}')
 
 	return df
 
@@ -266,47 +336,47 @@ def download_from_gcs(df_name):
 
 ## Text Manipulation
 def clean_text(text):
-    """
-    Cleans text by removing any leading/trailing white space, converting it to lowercase, removing
-    accents, punctuation, and converting to uppercase.
-    
-    Args:
-    text (str): The input text to clean.
-    
-    Returns:
-    str: The cleaned text.
-    """
-    if not isinstance(text, str):
-        try:
-            text = str(text)
-        except Exception as e:
-            print(f"{text} is not convertible to string: {e}")
-            return text
+	"""
+	Cleans text by removing any leading/trailing white space, converting it to lowercase, removing
+	accents, punctuation, and converting to uppercase.
+	
+	Args:
+	text (str): The input text to clean.
+	
+	Returns:
+	str: The cleaned text.
+	"""
+	if not isinstance(text, str):
+		try:
+			text = str(text)
+		except Exception as e:
+			print(f"{text} is not convertible to string: {e}")
+			return text
 
-    # Remove accents, punctuation, and convert to uppercase
-    text = unidecode.unidecode(text).translate(str.maketrans('', '', string.punctuation)).upper().strip()
+	# Remove accents, punctuation, and convert to uppercase
+	text = unidecode.unidecode(text).translate(str.maketrans('', '', string.punctuation)).upper().strip()
 
-    # Replace multiple spaces with a single space
-    text = re.sub(r'\s+', ' ', text)
+	# Replace multiple spaces with a single space
+	text = re.sub(r'\s+', ' ', text)
 
-    return text
+	return text
 
 def word_to_remove(text):
-    """
-    Removes specified words from a text content.
+	"""
+	Removes specified words from a text content.
 
-    This function takes a text content (string) and removes specified words from it.
-    The words to remove are defined in the 'words_to_remove' list.
+	This function takes a text content (string) and removes specified words from it.
+	The words to remove are defined in the 'words_to_remove' list.
 
-    Args:
-        text (str): The content of the text to be cleaned.
+	Args:
+		text (str): The content of the text to be cleaned.
 
-    Returns:
-        str: The cleaned text content without the specified words.
-    """
-    pattern = '|'.join(map(re.escape, b3.nsd_words_to_remove))
-    text = re.sub(pattern, '', text)
-    return text
+	Returns:
+		str: The cleaned text content without the specified words.
+	"""
+	pattern = '|'.join(map(re.escape, b3.nsd_words_to_remove))
+	text = re.sub(pattern, '', text)
+	return text
 
 
 # B3
@@ -322,6 +392,7 @@ def load_nsd():
 	## get start and end points
 	if not df_nsd.empty:
 		df_nsd['envio'] = pd.to_datetime(df_nsd['envio'], dayfirst=True)
+		df_nsd['trimestre'] = pd.to_datetime(df_nsd['trimestre'])
 		start, end = nsd_range(df_nsd)
 	else:
 		start, end = 1, 100
@@ -337,9 +408,9 @@ def load_nsd():
 		progress = remaining_time(start_time, end-start, i)
 		try:
 			# add nsd row to dataframe
-			row = get_nsd(n)
+			row = grab_nsd(n)
 			rows.append(row)
-			print(n, progress, row[10], row[4], row[3], row[0])
+			print(n, progress, row[10], row[5], row[1], row[0], )
 			# reset gap
 			gap = 0
 		except Exception as e:
@@ -350,6 +421,8 @@ def load_nsd():
 		# partial save
 		if (end-start - i - 1) % b3.bin_size == 0:
 			df_web = pd.DataFrame(rows, columns=b3.columns['nsd'])
+			df_web['trimestre'] = pd.to_datetime(df_web['trimestre'], format='%d%m%Y', errors='coerce')
+
 			rows = []
 			if not df_nsd.empty:
 				df_nsd = pd.concat([df_nsd.dropna(), df_web.dropna()], ignore_index=True)
@@ -358,10 +431,8 @@ def load_nsd():
 
 			if end-start - i - 1 != 0:
 				df_nsd = save_parquet(df_nsd, 'nsd', upload=False)
-				print('partial save')
 			else:
 				df_nsd = save_parquet(df_nsd, 'nsd', upload=True)
-				print('final save')
 
 	return df_nsd
 
@@ -418,6 +489,8 @@ def nsd_dates(df_nsd):
 	Returns:
 		tuple: A tuple containing last_date, limit_date, and max_gap values.
 	"""
+	first_update = '1970-01-02'
+
 	try:
 		# Calculate the gap in days from today to max 'envio' date
 		last_date = df_nsd['envio'].max().date()
@@ -445,144 +518,343 @@ def nsd_dates(df_nsd):
 		limit_date = datetime.datetime.now().date() - datetime.timedelta(days=back_days)
 
 	except Exception as e:
-		last_date, limit_date, max_gap = pd.to_datetime('1970-01-02').date(), datetime.datetime.now().date(), b3.max_gap
+		last_date, limit_date, max_gap = pd.to_datetime(first_update).date(), datetime.datetime.now().date(), b3.max_gap
 
 	return last_date, limit_date, max_gap
 
-def get_nsd(nsd):
-    """
-    Extract information from a URL related to NSD (Número Sequencial do Documento), and RAD means Recebimento Automatizado de Documentos 
+def grab_nsd(nsd):
+	"""
+	Extract information from a URL related to NSD (Número Sequencial do Documento), and RAD means Recebimento Automatizado de Documentos 
 
-    Args:
-        nsd (str): The NSD number to fetch information for.
+	Args:
+		nsd (str): The NSD number to fetch information for.
 
-    Returns:
-        list: A list containing extracted information including company, dri, dri2, dre, data, versao, auditor,
-              auditor_rt, cancelamento, protocolo, envio, url, and nsd.
-    """
-    # URL
-    url = b3.url['nsd_pre'] + str(nsd) + b3.url['nsd_pos']
+	Returns:
+		list: A list containing extracted information including companhia, dri, dri2, dre, data, versao, auditor,
+			  auditor_rt, cancelamento, protocolo, envio, url, and nsd.
+	"""
+	# URL
+	url = b3.url['nsd_pre'] + str(nsd) + b3.url['nsd_pos']
 
-    # Getting the HTML content from the URL
-    response = requests.get(url, headers=header_random())
-    html_content = response.text
+	# Getting the HTML content from the URL
+	response = requests.get(url, headers=header_random())
+	html_content = response.text
 
-    # Parsing the HTML content with BeautifulSoup
-    soup = BeautifulSoup(html_content, 'html.parser')
+	# Parsing the HTML content with BeautifulSoup
+	soup = BeautifulSoup(html_content, 'html.parser')
 
-    # Extracting company
-    nomeCompanhia_tag = soup.find('span', {'id': 'lblNomeCompanhia'})
-    company = nomeCompanhia_tag.text.strip()
-    company = unidecode.unidecode(company).upper()
-    company = clean_text(company)
-    company = word_to_remove(company)
+	# Extracting companhia
+	nomeCompanhia_tag = soup.find('span', {'id': 'lblNomeCompanhia'})
+	companhia = nomeCompanhia_tag.text.strip()
+	companhia = unidecode.unidecode(companhia).upper()
+	companhia = clean_text(companhia)
+	companhia = word_to_remove(companhia)
 
-    # Extracting dri and dri2
-    nomeDRI_tag = soup.find('span', {'id': 'lblNomeDRI'})
-    dri_info = nomeDRI_tag.text.strip().split(' - ')
-    dri = dri_info[0]
-    dri = unidecode.unidecode(dri).upper()
-    dri2 = dri_info[-1].replace('(', '').replace(')', '')
-    dri2 = unidecode.unidecode(dri2).upper()
+	# Extracting dri and dri2
+	nomeDRI_tag = soup.find('span', {'id': 'lblNomeDRI'})
+	dri_info = nomeDRI_tag.text.strip().split(' - ')
+	dri = dri_info[0]
+	dri = unidecode.unidecode(dri).upper()
+	dri2 = dri_info[-1].replace('(', '').replace(')', '')
+	dri2 = unidecode.unidecode(dri2).upper()
 
-    # Extracting 'FCA', data, and versao
-    descricaoCategoria_tag = soup.find('span', {'id': 'lblDescricaoCategoria'})
-    descricaoCategoria = descricaoCategoria_tag.text.strip()
-    versao = descricaoCategoria.split(' - ')[-1]
-    data = descricaoCategoria.split(' - ')[1]
-    dre = descricaoCategoria.split(' - ')[0]
-    dre = unidecode.unidecode(dre).upper()
+	# Extracting 'FCA', data, and versao
+	descricaoCategoria_tag = soup.find('span', {'id': 'lblDescricaoCategoria'})
+	descricaoCategoria = descricaoCategoria_tag.text.strip()
+	versao = descricaoCategoria.split(' - ')[-1]
+	trimestre = descricaoCategoria.split(' - ')[1]
+	if len(trimestre) == 4:
+		trimestre = '31-12-' + trimestre
+	dre = descricaoCategoria.split(' - ')[0]
+	dre = unidecode.unidecode(dre).upper()
 
-    # Extracting auditor
-    lblAuditor_tag = soup.find('span', {'id': 'lblAuditor'})
-    auditor = lblAuditor_tag.text.strip().split(' - ')[0]
-    auditor = unidecode.unidecode(auditor).upper()
+	# Extracting auditor
+	lblAuditor_tag = soup.find('span', {'id': 'lblAuditor'})
+	auditor = lblAuditor_tag.text.strip().split(' - ')[0]
+	auditor = unidecode.unidecode(auditor).upper()
 
-    # Extracting auditor_rt
-    lblResponsavelTecnico_tag = soup.find('span', {'id': 'lblResponsavelTecnico'})
-    auditor_rt = lblResponsavelTecnico_tag.text.strip()
-    auditor_rt = unidecode.unidecode(auditor_rt).upper()
+	# Extracting auditor_rt
+	lblResponsavelTecnico_tag = soup.find('span', {'id': 'lblResponsavelTecnico'})
+	auditor_rt = lblResponsavelTecnico_tag.text.strip()
+	auditor_rt = unidecode.unidecode(auditor_rt).upper()
 
-    # Extracting protocolo
-    lblProtocolo_tag = soup.find('span', {'id': 'lblProtocolo'})
-    protocolo = lblProtocolo_tag.text.strip()
+	# Extracting protocolo
+	lblProtocolo_tag = soup.find('span', {'id': 'lblProtocolo'})
+	protocolo = lblProtocolo_tag.text.strip()
 
-    # Extracting '2010' and envio
-    lblDataDocumento_tag = soup.find('span', {'id': 'lblDataDocumento'})
-    lblDataDocumento = lblDataDocumento_tag.text.strip()
+	# Extracting '2010' and envio
+	lblDataDocumento_tag = soup.find('span', {'id': 'lblDataDocumento'})
+	lblDataDocumento = lblDataDocumento_tag.text.strip()
 
-    lblDataEnvio_tag = soup.find('span', {'id': 'lblDataEnvio'})
-    envio = lblDataEnvio_tag.text.strip()
-    envio = datetime.datetime.strptime(envio, "%d/%m/%Y %H:%M:%S")
+	lblDataEnvio_tag = soup.find('span', {'id': 'lblDataEnvio'})
+	envio = lblDataEnvio_tag.text.strip()
+	envio = datetime.datetime.strptime(envio, "%d/%m/%Y %H:%M:%S")
 
-    # Extracting cancelamento
-    cancelamento_tag = soup.find('span', {'id': 'lblMotivoCancelamentoReapresentacao'})
-    cancelamento = cancelamento_tag.text.strip()
-    cancelamento = unidecode.unidecode(cancelamento).upper()
+	# Extracting cancelamento
+	cancelamento_tag = soup.find('span', {'id': 'lblMotivoCancelamentoReapresentacao'})
+	cancelamento = cancelamento_tag.text.strip()
+	cancelamento = unidecode.unidecode(cancelamento).upper()
 
-    data = [company, dri, dri2, dre, data, versao, auditor, auditor_rt, cancelamento, protocolo, envio, url, nsd]
-    data = [clean_text(item) if item not in [company, envio, url] else item for item in data]
+	data = [companhia, trimestre, versao, dri, dri2, dre, auditor, auditor_rt, cancelamento, protocolo, envio, url, nsd]
+	data = [clean_text(item) if item not in [companhia, envio, url] else item for item in data]
 
-    return data
+	return data
 
-## ACOES
-def load_acoes(df_nsd):
-	df_acoes = load_parquet('acoes')
+## RAD DATA
+def load_rad(df_nsd, df_rad=''):
+	try:
+		# rad_local
+		df_rad = load_parquet('rad')
 
-	df_nsd_filtered, df_acoes = clean_acoes(df_nsd, df_acoes)
+		new_items = rad_filter_new_items(df_nsd, df_rad)
 
-	# Ordenar filtered_nsd
+		df_rad_web = grab_rad(new_items)
 
+		# concat both and save as 'rad'
+		df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()
+		df_rad = save_parquet(df_rad, 'rad')
+	except Exception as e:
+		pass
+	return df_rad
 
+def rad_filter_new_items(df_nsd, df_rad):
+	"""
+	Filters out new items in df_nsd that do not exist in df_rad based on NSD numbers extracted from URLs.
 
-	return df_acoes
+	Args:
+		df_nsd (pd.DataFrame): DataFrame containing NSD documents with columns for Company, Quarter, and URL.
+		df_rad (pd.DataFrame): DataFrame with RAD documents to compare against, including similar columns.
 
-def clean_acoes(df_nsd, df_acoes):
-    """
-    Cleans and filters DataFrames containing NSD information and stock actions, retaining only the most recent documents per company and quarter.
-    
-    Args:
-        df_nsd (pandas.DataFrame): Contains NSD information, including company, quarter (Trimestre), and document type (dre).
-        df_acoes (pandas.DataFrame): Contains stock actions with document URLs and quarters.
-        
-    Returns:
-        tuple of pandas.DataFrame: The first DataFrame contains cleaned and updated NSD information, and the second contains stock actions with only the most recent documents.
-    """
-    
-    # Filter for relevant document types
-    df_nsd_filtered = df_nsd[df_nsd['dre'].isin(b3.dfp)].copy()
+	Returns:
+		pd.DataFrame: Filtered DataFrame containing new items in df_nsd that are not present in df_rad.
+	"""
+	# Define columns for comparison and output
+	columns = ['companhia', 'trimestre']
+	df_columns = columns + ['url']
 
-    # Convert data types and remove duplicates
-    df_nsd_filtered['nsd'] = df_nsd_filtered['nsd'].astype(int)
-    df_nsd_filtered['Trimestre'] = pd.to_datetime(df_nsd_filtered['Trimestre'], format='%d%m%Y', errors='coerce')
-    df_nsd_filtered.sort_values('nsd', ascending=True, inplace=True)
-    df_nsd_filtered.drop_duplicates(['Companhia', 'Trimestre'], keep='last', inplace=True)
+	try:
+		# Prepare df_nsd: Filter by document type, sort, drop duplicates, and reset index
+		df_nsd_filtered = (df_nsd[df_nsd['dre'].isin(b3.dfp)]
+						.sort_values(by=columns + ['url'], ascending=[True, True, True])
+						.drop_duplicates(subset=columns, keep='last')
+						.reset_index(drop=True))
 
-    # Identify latest document per company and quarter
-    nsd_max = df_nsd_filtered.groupby(['Companhia', 'Trimestre'])['nsd'].max().reset_index()
-    nsd_max['Trimestre'] = pd.to_datetime(nsd_max['Trimestre'], format='%d%m%Y', errors='coerce')
-    nsd_max['nsd'] = nsd_max['nsd'].astype(int)
+		# Extract NSD numbers from URLs
+		df_nsd_filtered['nsd'] = df_nsd_filtered['url'].str.extract('Documento=(\d+)').astype(int)
+		df_rad['nsd'] = df_rad['url'].str.extract('Documento=(\d+)').astype(int)
 
-    df_nsd_filtered.sort_values(by=['Companhia', 'Trimestre'], ascending=[True, True], inplace=True)
+		# Merge the dataframes to find new entries in df_nsd compared to df_rad
+		merged_df = pd.merge(df_nsd_filtered, df_rad, on=columns, how='outer', suffixes=('', '_rad')).fillna(0)
+
+		# Filter for rows where df_nsd's NSD number is greater than df_rad's, indicating newer documents
+		df_new_items = merged_df[merged_df['nsd'] > merged_df['nsd_rad']]
+
+		# Convert the 'trimestre' column to datetime with day first format
+		df_new_items['trimestre'] = pd.to_datetime(df_new_items['trimestre'], format='%Y-%m-%d')
+
+		# Sort the DataFrame in ascending order based on the 'trimestre' column
+		df_new_items = df_new_items.sort_values(by=['companhia', 'trimestre'], ascending=[True, True])
+
+		# Reorder the columns as per your 'df_columns' list
+		df_new_items = df_new_items[df_columns]
+
+	except Exception as e:
+		pass
+		df_new_items = pd.DataFrame(columns=df_columns)
+
+	return df_new_items
+
+def grab_rad(new_items):
+	size = len(new_items)
+	try:
+		# Iniciar o processo de coleta de dados da web
+		driver, wait = load_browser()
+
+		df_rad_web = pd.DataFrame(columns=b3.columns['acoes'])
+		rad_web = []
+		# Processar cada linha em filtered_nsd para coletar dados acionários
+		start_time = time.time()
+		# Iterando sobre cada linha do DataFrame 'filtered_nsd'
+		for j, (i, row) in enumerate(new_items.iterrows()):
+			companhia = row['companhia']
+			trimestre = row['trimestre']
+			url = row['url']
+
+			driver.get(url)
+
+			acoes = grab_acoes(driver, wait, companhia, trimestre, url)
+			df_ind = grab_demo_fin(driver, wait, companhia, trimestre, url, "DFs Individuais")
+			df_con = grab_demo_fin(driver, wait, companhia, trimestre, url, "DFs Consolidadas")
+			# df_ind = pd.DataFrame(columns=b3.columns['acoes'])
+			# df_con = pd.DataFrame(columns=b3.columns['acoes'])
+			# print('fast debug df_ind, df_con')
+
+			rad_web.extend([acoes, df_ind, df_con])
+
+			print(remaining_time(start_time, size, j), companhia, trimestre)
+
+			# partial save
+			# if j >= 0: # b3.bin_size * 10
+			if (size - i - 1) % b3.bin_size/5 == 0:
+				df_web = pd.concat(rad_web, ignore_index=True)
+				df_rad_web = pd.concat([df_rad_web, df_web], ignore_index=True)
+				rad_web = []
+
+				if size - i - 1 == 0:
+					df_rad_web = save_parquet(df_rad_web, 'rad_web', upload=True)
+				else:
+					df_rad_web = save_parquet(df_rad_web, 'rad_web', upload=False)
+
+			if j >= b3.bin_size * 10:
+				print('break')
+				break
+
+	except Exception as e:
+		print('## Será que DF Individuais ou DF Consolidadas não existiram?? Ajuste as try except')
+		pass
+
+	df_rad_web = save_parquet(df_rad_web, 'rad_web', upload=True)
+	return df_rad_web
+
+def grab_acoes(driver, wait, companhia, trimestre, url):
+	"""
+	Extracts stock action data from a given URL using Selenium.
+
+	Args:
+		driver (webdriver): Selenium webdriver instance.
+		wait (WebDriverWait): WebDriverWait instance for handling dynamic content.
+		url (str): URL to navigate to and extract data from.
+
+	Returns:
+		list: Extracted stock action data including ON, PN, ON in treasury, PN in treasury, unit, and URL.
+			  Returns a list with zeros and 'UNIDADE' if an error occurs.
+	"""
+	try:
+		# Defina suas variáveis
+		stock_mkt = 'Ações'
+		stock_tes = 'Ações em Tesouraria'
+		stock_on = 'Ações ON'
+		stock_pn = 'Ações PN'
+
+		# Wait for and interact with dropdown menu
+		select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbGrupo']")))
+		Select(select_element).select_by_visible_text("Dados da Empresa")
+
+		# Switch to the relevant iframe to access the table
+		iframe_element = driver.find_element(By.ID, "iFrameFormulariosFilho")
+		driver.switch_to.frame(iframe_element)
+
+		# Locate and read the table into a DataFrame
+		table = driver.find_element(By.XPATH, "//*[@id='UltimaTabela']/table")
+		dados = pd.read_html(table.get_attribute('outerHTML'))[0]
+
+		# Parsing and converting table data
+		on = pd.to_numeric(dados.iloc[2, 1].replace('.', '').replace(',', ''), errors='coerce')
+		pn = pd.to_numeric(dados.iloc[3, 1].replace('.', '').replace(',', ''), errors='coerce')
+		on_tes = pd.to_numeric(dados.iloc[6, 1].replace('.', '').replace(',', ''), errors='coerce')
+		pn_tes = pd.to_numeric(dados.iloc[7, 1].replace('.', '').replace(',', ''), errors='coerce')
+
+		# Extracting unit from table header
+		unidade = 'UNIDADE'
+		match = re.search(r'\((.*?)\)', dados.iloc[0, 0])
+		if match:
+			unidade = match.group(1).upper()
+
+		# Dados como lista de tuplas, utilizando as variáveis
+		dados = [
+			(companhia, trimestre, b3.conta_acoes[0][0], b3.conta_acoes[0][1], on, unidade, stock_mkt, stock_on, url),
+			(companhia, trimestre, b3.conta_acoes[1][0], b3.conta_acoes[1][1], pn, unidade, stock_mkt, stock_pn, url),
+			(companhia, trimestre, b3.conta_acoes[2][0], b3.conta_acoes[2][1], on_tes, unidade, stock_tes, stock_on, url),
+			(companhia, trimestre, b3.conta_acoes[3][0], b3.conta_acoes[3][1],  pn_tes, unidade, stock_tes, stock_pn, url),
+		]
+
+		# Criação do DataFrame
+		acoes = pd.DataFrame(dados, columns=b3.columns['acoes'])
+
+	except Exception as e:
+		acoes = pd.DataFrame(columns=b3.columns['acoes'])
+	finally:
+		# Ensure driver switches back to the default content
+		driver.switch_to.default_content()
+
+	return acoes
+
+def grab_demo_fin(driver, wait, companhia, trimestre, url, df):
+	try:
+		options_to_remove = ['Demonstração das Mutações do Patrimônio Líquido']
+
+		# Wait for and interact with dropdown menu
+		select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbGrupo']")))
+		Select(select_element).select_by_visible_text(df)
+
+		# Wait for and interact with the second dropdown menu
+		select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbQuadro']")))
+
+		# Get all available options
+		select = Select(select_element)
+		options = select.options
+		option_texts = [option.text for option in options if option.text not in options_to_remove]
+
+		dados = []
+		for option in option_texts:
+			try:
+				select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbQuadro']")))
+				Select(select_element).select_by_visible_text(option)
+
+				partial = grab_demo_det(driver, wait, companhia, trimestre, url, option, df)
+				dados.append(partial)
+			except Exception as e:
+				pass
+		# Preparing the output list
+		dfs = pd.concat(dados, ignore_index=True)  # Set ignore_index=True to reset the index
+
+	except Exception as e:
+		dfs = []
+
+	return dfs
+
+def grab_demo_det(driver, wait, companhia, trimestre, url, option, df):
+	try:
+		# Switch to the relevant iframe to access the table
+		iframe_element = driver.find_element(By.ID, "iFrameFormulariosFilho")
+		driver.switch_to.frame(iframe_element)
+
+		# Locate and read the table into a DataFrame
+		table = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_cphPopUp_tbDados"]')))
+		table = driver.find_element(By.XPATH, '//*[@id="ctl00_cphPopUp_tbDados"]')
+		dados = pd.read_html(table.get_attribute('outerHTML'), skiprows=[0], converters={2: lambda x: x.replace('.', '')})[0]
+		dados = dados.iloc[:, :3]
+		dados.columns = b3.columns['acoes'][2:5]
+		dados['conta'] = dados['conta'].astype(str)
+		dados['valor'] = dados['valor'].fillna(0).astype(int)
+		dados['companhia'] = companhia
+		dados['trimestre'] = trimestre
+		dados['url'] = url
+
+		# unidade
+		element_text = driver.find_element(By.XPATH, '//*[@id="TituloTabelaSemBorda"]').text
+		result = re.search(r'\((.*?)\)', element_text)
+		if result:
+			unidade = result.group(1)
+		else:
+			unidade = 'UNIDADE'
+		dados['unidade'] = unidade
+
+		# Check if 'mil' is in the 'unidade' column and other adjustments
+		dados['valor'] = dados.apply(lambda row: row['valor'] * 1000 if 'Mil' in row['unidade'] else row['valor'], axis=1)
+		dados['unidade'] = dados.apply(lambda row: 'UNIDADE' if 'Mil' in row['unidade'] else row['unidade'], axis=1)
+		dados['demo_det'] = option
+		dados['demo_fin'] = df
+
+	except Exception as e:
+		dados = pd.DataFrame(columns=b3.columns['acoes'])
 	
-    if not df_acoes.empty:
-        # Extract NSD from URLs and convert 'Trimestre' to datetime
-        df_acoes['nsd'] = df_acoes['URL'].apply(lambda x: int(x.split('Documento=')[-1].split('&')[0]))
-        df_acoes['Trimestre'] = pd.to_datetime(df_acoes['Trimestre'], format='%d%m%Y', errors='coerce')
+	finally:
+		# Ensure driver switches back to the default content
+		driver.switch_to.default_content()
 
-        # Combine rows based on Company and Quarter, retaining recent entries
-        df_acoes_merged = pd.merge(df_acoes, nsd_max, on=['Companhia', 'Trimestre'], how='left', suffixes=('', '_max'))
-        acoes_most_recent = df_acoes_merged[df_acoes_merged['nsd'] >= df_acoes_merged['nsd_max']].drop(columns=['nsd_max'])
 
-        # List URLs from recent entries to remove from df_nsd_filtered
-        urls_to_remove = acoes_most_recent['URL'].unique()
-        df_nsd_filtered = df_nsd_filtered[~df_nsd_filtered['url'].isin(urls_to_remove)]
-
-        # Drop temporary columns
-        df_acoes.drop(columns=['nsd', 'nsd_max'], inplace=True, errors='ignore')
-
-    return df_nsd_filtered, df_acoes
-
+	return dados[b3.columns['acoes']]
 
 # OTHER TO ORGANIZE
 

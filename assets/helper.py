@@ -15,12 +15,18 @@ dataset_path = os.curdir + '/' + dataset_folder
 dataset_path = run.check_or_create_folder(dataset_path)
 
 columns = {}
-columns['nsd'] = ['Companhia', 'dri', 'dri2', 'dre', 'Trimestre', 'versao', 'auditor', 'auditor_rt', 'cancelamento', 'protocolo', 'envio', 'url', 'nsd']
-columns['acoes'] = ['Companhia', 'Trimestre', 'Ações ON', 'Ações PN', 'Ações ON em Tesouraria', 'Ações PN em Tesouraria', 'Unidade', 'URL']
+columns['acoes'] = ['companhia', 'trimestre', 'conta', 'descrição', 'valor', 'unidade', 'demo_det', 'demo_fin', 'url']
+columns['rad'] = ['companhia', 'trimestre', 'conta', 'descrição', 'valor', 'unidade', 'demo_det', 'demo_fin', 'url']
+columns['nsd'] = ['companhia', 'trimestre', 'versao', 'dri', 'dri2', 'dre', 'auditor', 'auditor_rt', 'cancelamento', 'protocolo', 'envio', 'url', 'nsd']
+
+conta_acoes = [
+    ['0.01.01', 'Ações ON'], 
+    ['0.01.02', 'Ações PN'], 
+    ['0.02.01', 'Ações ON em Tesouraria'], 
+    ['0.02.02', 'Ações PN em Tesouraria'], 
+    ]
 
 dfp = ['INFORMACOES TRIMESTRAIS', 'DEMONSTRACOES FINANCEIRAS PADRONIZADAS']
-
-
 
 nsd = 0
 url = {}
@@ -83,7 +89,8 @@ REFERERS = [
 ]
 LANGUAGES = ['en-US;q=1.0', 'es-ES;q=0.9', 'fr-FR;q=0.8', 'de-DE;q=0.7', 'it-IT;q=0.6', 'pt-BR;q=0.9', 'ja-JP;q=0.8', 'zh-CN;q=0.7', 'ko-KR;q=0.6', 'ru-RU;q=0.9', 'ar-SA;q=0.8', 'hi-IN;q=0.7', 'tr-TR;q=0.6', 'nl-NL;q=0.9', 'sv-SE;q=0.8', 'pl-PL;q=0.7', 'fi-FI;q=0.6', 'da-DK;q=0.9', 'no-NO;q=0.8', 'hu-HU;q=0.7', 'ro-RO;q=0.6', 'cs-CZ;q=0.9', 'el-GR;q=0.8', 'th-TH;q=0.7', 'id-ID;q=0.6']
 
-
+# BROWSER
+chromedriver_path = r"D:\Fausto Stangler\Documentos\Python\PTF\assets\chromedriver-win64\chromedriver.exe"
 
 # NSD
 nsd_safety_factor=1.8

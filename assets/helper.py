@@ -18,6 +18,8 @@ columns = {}
 columns['acoes'] = ['companhia', 'trimestre', 'conta', 'descrição', 'valor', 'unidade', 'demo_det', 'demo_fin', 'url']
 columns['rad'] = ['companhia', 'trimestre', 'conta', 'descrição', 'valor', 'unidade', 'demo_det', 'demo_fin', 'url']
 columns['nsd'] = ['companhia', 'trimestre', 'versao', 'dri', 'dri2', 'dre', 'auditor', 'auditor_rt', 'cancelamento', 'protocolo', 'envio', 'url', 'nsd']
+columns['companies'] = ['pregao', 'company_name', 'cvm', 'listagem', 'ticker', 'tickers', 'asin', 'cnpj', 'site', 'setor', 'subsetor', 'segmento', 'atividade', 'escriturador', 'stock_holders', 'url']
+columns['tickers'] = ['ticker', 'company_name', 'pregao', 'listagem']
 
 conta_acoes = [
     ['0.01.01', 'Ações ON'], 
@@ -32,6 +34,22 @@ nsd = 0
 url = {}
 url['nsd_pre'] = f'https://www.rad.cvm.gov.br/ENET/frmGerenciaPaginaFRE.aspx?NumeroSequencialDocumento='
 url['nsd_pos'] = f'&CodigoTipoInstituicao=1'
+url['b3_search'] = f'https://sistemaswebb3-listados.b3.com.br/listedCompaniesPage/search?language=pt-br' 
+
+
+abbreviations_dict = {
+    "NM": "Cia. Novo Mercado",
+    "N1": "Cia. Nível 1 de Governança Corporativa",
+    "N2": "Cia. Nível 2 de Governança Corporativa",
+    "MA": "Cia. Bovespa Mais",
+    "M2": "Cia. Bovespa Mais Nível 2",
+    "MB": "Cia. Balcão Org. Tradicional",
+    "DR1": "BDR Nível 1",
+    "DR2": "BDR Nível 2",
+    "DR3": "BDR Nível 3",
+    "DRE": "BDR de ETF",
+    "DRN": "BDR Não Patrocinado"
+}
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",

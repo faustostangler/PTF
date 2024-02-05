@@ -40,21 +40,18 @@ from selenium.webdriver.chrome.service import Service
 
 # SYSTEM LOAD
 def load_system(value):
+	# load df_companies
+	df_companies = load_companies()
+
 	# # load df_nsd
 	# df_nsd = load_nsd()
 	df_nsd = load_parquet('nsd')
 	print('fast debug df_nsd')
 
-	# load df_rad
-	df_rad = load_rad(df_nsd)
-
-
-	# # load df_acoes
-	# df_acoes = load_acoes(df_nsd)
-
-	# # database full
-	# df = load_database()
-
+	# # load df_rad
+	# df_rad = load_rad(df_nsd)
+	df_rad = load_parquet('rad')
+	print('fast debug df_rad')
 
 	return value
 
@@ -335,6 +332,112 @@ def download_from_gcs(df_name):
 	return df
 
 ## Text Manipulation
+def wText(xpath: str, wait: WebDriverWait) -> str:
+    """
+    Finds and retrieves text from a web element using the provided xpath and wait object.
+    
+    Args:
+    xpath (str): The xpath of the element to retrieve text from.
+    wait (WebDriverWait): The wait object to use for finding the element.
+    
+    Returns:
+    str: The text of the element, or an empty string if an exception occurs.
+    """
+    try:
+        # Wait until the element is clickable, then retrieve its text.
+        element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        text = element.text
+        
+        return text
+    except Exception as e:
+        # If an exception occurs, print the error message (if needed) and return an empty string.
+        # print('wText', e)
+        return ''
+
+def wClick(xpath: str, wait: WebDriverWait) -> bool:
+    """
+    Finds and clicks on a web element using the provided xpath and wait object.
+    
+    Args:
+    xpath (str): The xpath of the element to click.
+    wait (WebDriverWait): The wait object to use for finding the element.
+    
+    Returns:
+    bool: True if the element was found and clicked, False otherwise.
+    """
+    try:
+        # Wait until the element is clickable, then click it.
+        element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        element.click()
+        return True
+    except Exception as e:
+        # If an exception occurs, print the error message (if needed) and return False.
+        # print('wClick', e)
+        return False
+
+def wSelect(xpath: str, driver: webdriver.Chrome, wait: WebDriverWait) -> int:
+    """
+    Finds and selects a web element using the provided xpath and wait object.
+    
+    Args:
+    xpath (str): The xpath of the element to select.
+    driver (webdriver.Chrome): The Chrome driver object to use for selecting the element.
+    wait (WebDriverWait): The wait object to use for finding the element.
+    
+    Returns:
+    int: The value of the selected option, or an empty string if an exception occurs.
+    """
+    try:
+        # Wait until the element is clickable, then click it.
+        element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        element.click()
+        
+        # Get the Select object for the element, find the maximum option value, and select it.
+        select = Select(driver.find_element(By.XPATH, xpath))
+        options = [int(x.text) for x in select.options]
+        batch = str(max(options))
+        select.select_by_value(batch)
+        
+        return int(batch)
+    except Exception as e:
+        # If an exception occurs, print the error message (if needed) and return an empty string.
+        # print('wSelect', e)
+        return ''
+   
+def wSendKeys(xpath: str, keyword: str, wait: WebDriverWait) -> str:
+    """
+    Finds and sends keys to a web element using the provided xpath and wait object.
+    
+    Args:
+    xpath (str): The xpath of the element to send keys to.
+    keyword (str): The keyword to send to the element.
+    wait (WebDriverWait): The wait object to use for finding the element.
+    
+    Returns:
+    str: The keyword that was sent to the element, or an empty string if an exception occurs.
+    """
+    try:
+        # Wait until the element is clickable, then send the keyword to it.
+        input_element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        input_element.send_keys(keyword)
+        
+        return keyword
+    except Exception as e:
+        # If an exception occurs, print the error message (if needed) and return an empty string.
+        # print('wSendKeys', e)
+        return ''
+
+def wRaw(xpath, wait):
+  try:
+    # Wait until the element is clickable, then retrieve its text.
+    element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+    raw_code = element.get_attribute("innerHTML")
+    return raw_code
+  except Exception as e:
+    # If an exception occurs, print the error message (if needed) and return an empty string.
+    # print('wText', e)
+    return ''
+
 def clean_text(text):
 	"""
 	Cleans text by removing any leading/trailing white space, converting it to lowercase, removing
@@ -380,6 +483,100 @@ def word_to_remove(text):
 
 
 # B3
+
+## COMPANIES
+def load_companies():
+	try:
+		# browser
+		driver, wait = load_browser()
+		driver.get(b3.url['b3_search'])
+
+		# companies_local
+		df_companies = load_parquet('companies')
+
+		companies_tickers = grab_tickers(driver, wait)
+
+
+		# Define columns and constants
+
+
+	except Exception as e:
+		pass
+
+	return df_companies
+
+def grab_tickers(driver, wait):
+
+	try:
+		batch = wSelect(f'//*[@id="selectPage"]', driver, wait)
+		companies = wText(f'//*[@id="divContainerIframeB3"]/form/div[1]/div/div/div[1]/p/span[1]', wait)
+		companies = int(companies.replace('.',''))
+		pages = int(companies/batch)
+		wSelect(f'//*[@id="selectPage"]', driver, wait)
+
+		value = f'found {companies} companies in {pages+1} pages'
+		print(value)
+
+		raw_code = []
+		start_time = time.time()
+		for i, page in enumerate(range(0, pages+1)):
+			xpath = '//*[@id="nav-bloco"]/div'
+			xpath = '//*[@id="nav-bloco"]/div'
+			inner_html = wRaw(xpath, wait)
+			raw_code.append(inner_html)
+			wClick(f'//*[@id="listing_pagination"]/pagination-template/ul/li[10]/a', wait)
+			time.sleep(0.5)
+			value = f'page {page+1}'
+			print(remaining_time(start_time, pages+1, i), value)
+
+		companies_tickers = grab_ticker_keywords(raw_code)
+
+
+	except Exception as e:
+		pass
+
+	return companies_tickers
+
+def grab_ticker_keywords(raw_code):
+  # Initialize a list to hold the keyword information
+  keywords = []
+
+  for inner_html in raw_code:
+     # Parse the raw HTML source code
+    soup = BeautifulSoup(inner_html, 'html.parser')
+
+    # Find all the card elements
+    cards = soup.find_all('div', class_='card-body')
+
+    # Loop through each card element and extract the ticker and company name
+    for card in cards:
+      try:
+        # Extract the ticker and company name from the card element
+        ticker = clean_text(card.find('h5', class_='card-title2').text)
+        company_name = clean_text(card.find('p', class_='card-title').text)
+        pregao = clean_text(card.find('p', class_='card-text').text)
+        listagem = clean_text(card.find('p', class_='card-nome').text)
+        if listagem:
+            for abbr, full_name in b3.abbreviations_dict.items():
+                new_listagem = clean_text(listagem.replace(abbr, full_name))
+                if new_listagem != listagem:
+                    listagem = new_listagem
+                    break  # Break out of the loop if a replacement was made
+
+        # Append the ticker and company name to the keyword list
+        keyword = [ticker, company_name, pregao, listagem]
+        keywords.append(keyword)
+        # print(keyword)
+      except Exception as e:
+        # print(e)
+        pass
+
+
+  df = pd.DataFrame(keywords, columns=b3.columns['tickers'])
+  df.reset_index(drop=True, inplace=True)
+  df.drop_duplicates(inplace=True)
+  return df
+
 
 ## NSD
 def load_nsd():

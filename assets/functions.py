@@ -693,8 +693,8 @@ def grab_rad(df_rad, new_items):
 			print(remaining_time(start_time, size, j), companhia, trimestre)
 
 			# partial save
-			if j >= 0: # b3.bin_size * 10
-			# if (size - i - 1) % b3.bin_size/5 == 0:
+			# if j >= 0: # b3.bin_size * 10
+			if (size - i - 1) % b3.bin_size/5 == 0:
 				df_web = pd.concat(rad_web, ignore_index=True)
 				df_rad_web = pd.concat([df_rad_web, df_web], ignore_index=True)
 				rad_web = []

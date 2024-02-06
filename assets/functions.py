@@ -10,6 +10,7 @@ import time
 import winsound
 import random
 
+import numpy as np
 import pandas as pd
 
 from google.cloud import storage
@@ -37,9 +38,20 @@ from selenium.webdriver.common.alert import Alert
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
+from lxml import html
+import zipfile
+
+import multiprocessing
+from multiprocessing import Pool
+
+from urllib.parse import urljoin
+session = requests.Session() # Inicializar uma sessão
+visited_subfolders = set() # Conjunto para armazenar subpastas já visitadas
+filelist = []
 
 # SYSTEM LOAD
 def load_system(value):
+     
 	# load df_companies
 	df_companies = load_companies()
 
@@ -49,9 +61,9 @@ def load_system(value):
 	print('fast debug df_nsd')
 
 	# # load df_rad
-	# df_rad = load_rad(df_nsd)
-	df_rad = load_parquet('rad')
-	print('fast debug df_rad')
+	df_rad = load_rad(df_nsd)
+	# df_rad = load_parquet('rad')
+	# print('fast debug df_rad')
 
 	return value
 
@@ -203,7 +215,6 @@ def load_browser(chromedriver_path='', download_directory=None, driver_wait_time
 	
 	# Return a tuple containing the driver and the wait object.
 	return driver, wait
-
 
 ## File Management
 def load_parquet(df_name):
@@ -496,6 +507,11 @@ def load_companies():
 
 		companies_tickers = grab_tickers(driver, wait)
 
+		new_items = filter_new_companies(df_companies, companies_tickers)
+
+
+
+		df_companies_web = grab_companies(driver, wait, companies_tickers)
 
 		# Define columns and constants
 
@@ -504,6 +520,44 @@ def load_companies():
 		pass
 
 	return df_companies
+
+def filter_new_companies(df_companies, companies_tickers):
+    """
+    Filters out companies from df_companies that are not listed in companies_tickers.
+
+    Args:
+    - df_companies (pd.DataFrame): DataFrame containing information about companies, expected to have a 'ticker' column.
+    - companies_tickers (list): List of company tickers for comparison.
+
+    Returns:
+    - pd.DataFrame: A DataFrame containing companies from df_companies not found in companies_tickers.
+    """
+    try:
+        # Ensure the 'ticker' column is in df_companies for comparison
+        if 'ticker' not in df_companies.columns:
+            raise ValueError("df_companies must contain a 'ticker' column.")
+
+        # Filter df_companies to include only those not in companies_tickers
+        new_companies_df = df_companies[~df_companies['ticker'].isin(companies_tickers)]
+
+        # Optionally, reset index and select specific columns if needed
+        new_companies_df.reset_index(drop=True, inplace=True)
+
+    except Exception as e:
+        # Handle any exceptions, such as missing 'ticker' column
+        print(f"Error encountered: {e}")
+        new_companies_df = pd.DataFrame(columns=df_companies.columns)
+
+    return new_companies_df
+
+def grab_companies(driver, wait, companies_tickers):
+	try:
+		pass
+
+	except Exception as e:
+		pass
+
+	return df_companies_web
 
 def grab_tickers(driver, wait):
 
@@ -580,58 +634,61 @@ def grab_ticker_keywords(raw_code):
 
 ## NSD
 def load_nsd():
-	# nsd_local
-	df_nsd = load_parquet('nsd')
-	
-	# update df_nsd
-	gap = 0
+    """
+    Loads NSD data from a local parquet file, updates it by fetching new NSD records,
+    and saves the updated dataset back to a parquet file.
 
-	## get start and end points
-	if not df_nsd.empty:
-		df_nsd['envio'] = pd.to_datetime(df_nsd['envio'], dayfirst=True)
-		df_nsd['trimestre'] = pd.to_datetime(df_nsd['trimestre'])
-		start, end = nsd_range(df_nsd)
-	else:
-		start, end = 1, 100
-		
-	rows = []
-	start_time = time.time()
-	for i, n in enumerate(range(start, end)):
-		# interrupt conditions
-		last_date, limit_date, max_gap = nsd_dates(df_nsd)
-		if last_date > limit_date:
-			if gap == max_gap:
-				break
-		progress = remaining_time(start_time, end-start, i)
-		try:
-			# add nsd row to dataframe
-			row = grab_nsd(n)
-			rows.append(row)
-			print(n, progress, row[10], row[5], row[1], row[0], )
-			# reset gap
-			gap = 0
-		except Exception as e:
-			# increase gap count
-			gap += 1
-			print(n, progress)
+    Returns:
+    - pd.DataFrame: The updated DataFrame containing NSD records.
+    """
+    # Load NSD data from a local parquet file
+    df_nsd = load_parquet('nsd')
+    
+    # Initialize a variable to track gaps in data fetching
+    gap = 0
 
-		# partial save
-		if (end-start - i - 1) % b3.bin_size == 0:
-			df_web = pd.DataFrame(rows, columns=b3.columns['nsd'])
-			df_web['trimestre'] = pd.to_datetime(df_web['trimestre'], format='%d%m%Y', errors='coerce')
+    # Determine the start and end points for data fetching
+    if not df_nsd.empty:
+        df_nsd['envio'] = pd.to_datetime(df_nsd['envio'], dayfirst=True)
+        df_nsd['trimestre'] = pd.to_datetime(df_nsd['trimestre'])
+        start, end = nsd_range(df_nsd)  # Function to calculate start and end points
+    else:
+        start, end = 1, 100  # Default range if df_nsd is empty
 
-			rows = []
-			if not df_nsd.empty:
-				df_nsd = pd.concat([df_nsd.dropna(), df_web.dropna()], ignore_index=True)
-			else:
-				df_nsd = df_web
+    rows = []  # Temporary storage for fetched NSD rows
+    start_time = time.time()  # Track the operation's start time for progress estimation
 
-			if end-start - i - 1 != 0:
-				df_nsd = save_parquet(df_nsd, 'nsd', upload=False)
-			else:
-				df_nsd = save_parquet(df_nsd, 'nsd', upload=True)
+    # Fetch new NSD records within the determined range
+    for i, n in enumerate(range(start, end)):
+        # Check for interruption conditions based on dates and gap limit
+        last_date, limit_date, max_gap = nsd_dates(df_nsd)  # Function to get relevant dates and max gap
+        if last_date > limit_date and gap == max_gap:
+            break
+        
+        # Display progress
+        progress = remaining_time(start_time, end-start, i)
+        
+        try:
+            # Fetch NSD record and append to the temporary list
+            row = grab_nsd(n)  # Function to fetch NSD data
+            rows.append(row)
+            print(n, progress, row[10], row[5], row[1], row[0])
+            gap = 0  # Reset gap counter after successful fetch
+        except Exception as e:
+            # Increment gap counter if fetching fails
+            gap += 1
+            print(n, progress)
 
-	return df_nsd
+        # Save fetched data periodically
+        if (end-start - i - 1) % b3.bin_size == 0:
+            df_web = pd.DataFrame(rows, columns=b3.columns['nsd'])
+            df_web['trimestre'] = pd.to_datetime(df_web['trimestre'], format='%d%m%Y', errors='coerce')
+
+            rows = []  # Reset temporary storage after saving
+            df_nsd = pd.concat([df_nsd.dropna(), df_web.dropna()], ignore_index=True) if not df_nsd.empty else df_web
+            df_nsd = save_parquet(df_nsd, 'nsd', upload=(end-start - i - 1 == 0))
+
+    return df_nsd
 
 def nsd_range(df_nsd):
 	"""
@@ -799,22 +856,41 @@ def grab_nsd(nsd):
 
 ## RAD DATA
 def load_rad(df_nsd, df_rad=''):
-	try:
-		# rad_local # o concat é para enquanto toda a base está sendo construída/baixasda
-		df_rad = load_parquet('rad')
+    """
+    Load the RAD dataset, update it with new items based on NSD data, re-download incomplete sheets,
+    and save the updated dataset. Handles exceptions silently.
 
-		new_items = rad_filter_new_items(df_nsd, df_rad)
+    Args:
+    - df_nsd (pd.DataFrame): DataFrame containing NSD (NumeroSequencialDocumento) data for new RAD items.
+    - df_rad (pd.DataFrame): Optional initial RAD dataset. If not provided, attempts to load from a local source.
 
-		df_rad_web = grab_rad(df_rad, new_items)
+    Returns:
+    - pd.DataFrame: The updated RAD dataset including both previously stored data and new items.
+    """
+    try:
+        # Attempt to load the RAD dataset from a local source if df_rad is not provided
+        if not isinstance(df_rad, pd.DataFrame) or df_rad.empty:
+            df_rad = load_parquet('rad')  # Assumes 'load_parquet' loads a DataFrame from a local file named 'rad'
 
-		# concat both and save as 'rad'
-		df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()
-		df_rad = save_parquet(df_rad, 'rad')
-	except Exception as e:
-		pass
-	return df_rad
+        # Filter out new RAD items that are not yet in the df_rad DataFrame
+        new_items = filter_new_rad_items(df_nsd, df_rad)  # Assumes this function identifies new items to add
 
-def rad_filter_new_items(df_nsd, df_rad):
+        # Download data for the new RAD items
+        df_rad_web = grab_rad(df_rad, new_items)  # Assumes 'grab_rad' fetches RAD data for given items
+
+        # Re-download any incomplete sheets in the newly grabbed data
+        df_rad_web = regrab_web(df_rad_web)  # Assumes 'regrab_web' checks and re-downloads incomplete data
+
+        # Concatenate the original and new data, remove duplicates, then save the updated dataset
+        df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()
+        df_rad = save_parquet(df_rad, 'rad')  # Assumes 'save_parquet' saves the DataFrame and returns the updated DataFrame
+    except Exception as e:
+        # Exception handling could be logging or a simple pass; currently, it silently ignores errors
+        pass
+
+    return df_rad
+
+def filter_new_rad_items(df_nsd, df_rad):
 	"""
 	Filters out new items in df_nsd that do not exist in df_rad based on NSD numbers extracted from URLs.
 
@@ -847,6 +923,7 @@ def rad_filter_new_items(df_nsd, df_rad):
 
 		# Filter for rows where df_nsd's NSD number is greater than df_rad's, indicating newer documents
 		df_new_items = merged_df[merged_df['nsd'] > merged_df['nsd_rad']]
+		df_new_items = df_new_items.copy()
 
 		# Convert the 'trimestre' column to datetime with day first format
 		df_new_items['trimestre'] = pd.to_datetime(df_new_items['trimestre'], format='%Y-%m-%d')
@@ -862,6 +939,7 @@ def rad_filter_new_items(df_nsd, df_rad):
 		df_new_items = pd.DataFrame(columns=df_columns)
 
 	return df_new_items
+
 
 def grab_rad(df_rad, new_items):
 	size = len(new_items)
@@ -887,25 +965,21 @@ def grab_rad(df_rad, new_items):
 
 			rad_web.extend([acoes, df_ind, df_con])
 
-			print(remaining_time(start_time, size, j), companhia, trimestre)
+			print(remaining_time(start_time, size, j), companhia, trimestre, )
 
 			# partial save
-			# if j >= 0: # b3.bin_size * 10
-			if (size - i - 1) % b3.bin_size/5 == 0:
+			if (size - i - 1) % b3.bin_size == 0:
 				df_web = pd.concat(rad_web, ignore_index=True)
 				df_rad_web = pd.concat([df_rad_web, df_web], ignore_index=True)
 				rad_web = []
 
 				df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()[b3.columns['rad']]
 				df_rad = df_rad.sort_values(by=['companhia', 'trimestre'], ascending=[True, True])
+
 				if size - i - 1 == 0:
 					df_rad = save_parquet(df_rad, 'rad', upload=True)
 				else:
 					df_rad = save_parquet(df_rad, 'rad', upload=False)
-
-			if j >= b3.bin_size * 10:
-				print('break')
-				break
 
 	except Exception as e:
 		print('## Será que DF Individuais ou DF Consolidadas não existiram?? Ajuste as try except')
@@ -915,6 +989,91 @@ def grab_rad(df_rad, new_items):
 	df_rad = df_rad.sort_values(by=['companhia', 'trimestre'], ascending=[True, True])
 	df_rad = save_parquet(df_rad, 'rad', upload=True)
 	return df_rad
+
+def regrab_web(df_rad_web):
+    """
+    Identifies incomplete sheets in the given DataFrame, removes those entries, and then re-downloads 
+    the data for the missing 'companhia-trimestre' pairs to ensure completeness of the dataset.
+
+    Args:
+    - df_rad_web (pd.DataFrame): DataFrame containing RAD web data with columns including 'companhia',
+      'trimestre', 'demo_det', and 'url'.
+
+    Returns:
+    - pd.DataFrame: Updated DataFrame with re-downloaded data for previously identified incomplete sheets.
+    """
+    # Step 1: Identify missing (incomplete) sheets based on 'companhia' and 'trimestre'
+    missing_sheets = find_incomplete_sheets(df_rad_web)
+
+    # Step 2: Remove entries identified as incomplete
+    df_rad_complete, missing_items = remove_missing_items(df_rad_web, missing_sheets)
+
+    # Step 3: Re-download the data for missing 'companhia-trimestre' pairs
+    # Note: Implementation of grab_rad() function is assumed and needs to be defined based on specific data fetching logic
+    df_rad_web_updated = grab_rad(df_rad_complete, missing_items)
+    
+    return df_rad_web_updated
+
+def find_incomplete_sheets(df_rad_web):
+	"""
+	Identify the 'companhia' and 'trimestre' pairs in df_rad_web that have fewer unique 'demo_det' entries
+	than the maximum found across all such pairs, suggesting these are incomplete.
+
+	Args:
+	- df_rad_web (pd.DataFrame): DataFrame containing web data, expected to have at least 'companhia',
+		'trimestre', and 'demo_det' columns.
+
+	Returns:
+	- pd.DataFrame: A DataFrame with rows for each 'companhia' and 'trimestre' pair that has fewer
+		unique 'demo_det' entries than the maximum found, indicating potential incompleteness.
+	"""
+	# Group by 'companhia' and 'trimestre', then count unique 'demo_det' values for each group
+	demo_det_sheets = df_rad_web.groupby(['companhia', 'trimestre'])[['demo_det']].nunique().reset_index()
+
+	# Create a mask to identify groups with fewer unique 'demo_det' values than the max in the dataset
+	mask = demo_det_sheets['demo_det'] < demo_det_sheets['demo_det'].max()
+
+	# Apply the mask to filter and return the potentially incomplete sheets
+	missing_sheets = demo_det_sheets[mask].reset_index(drop=True)
+
+	return missing_sheets
+
+def remove_missing_items(df_rad_web, missing_sheets):
+	"""
+	Remove entries from df_rad_web that match the missing_sheets based on 'companhia' and 'trimestre',
+	and prepare a dataframe of missing items with extracted NSD values sorted by 'companhia' and 'trimestre'.
+
+	Args:
+	- df_rad_web (pd.DataFrame): Original dataframe containing web data with columns including 'companhia', 'trimestre', and 'url'.
+	- missing_sheets (pd.DataFrame): Dataframe indicating which sheets are missing, with columns 'companhia' and 'trimestre'.
+
+	Returns:
+	- pd.DataFrame: df_rad_complete, the dataframe after removing entries matching the missing sheets.
+	- pd.DataFrame: missing_df, a dataframe of missing sheets with extracted NSD values from URLs, sorted and without duplicates.
+	"""
+	# Define the key columns for merging and the columns to retain in the missing_df
+	columns = ['companhia', 'trimestre']
+	df_columns = columns + ['url']
+
+	# Merge the original dataframe with the missing sheets dataframe to flag the rows
+	merged_df = pd.merge(left=df_rad_web, right=missing_sheets, on=columns, how='outer', indicator=True)
+
+	# Filter out the complete data (not matching with missing sheets)
+	df_rad_complete = merged_df[merged_df['_merge'] == 'left_only'].copy()
+
+	# Filter the data that is present in both dataframes (i.e., the missing sheets)
+	missing_df = merged_df[merged_df['_merge'] == 'both'].copy()
+
+	# Apply the function to extract NSD values from URLs
+	missing_df['nsd'] = missing_df['url'].str.extract('Documento=(\d+)').astype(int)
+
+	# Sort the missing sheets dataframe by 'companhia' and 'trimestre' for readability and analysis
+	missing_df = missing_df.sort_values(by=columns, ascending=[True, True])
+
+	# Select relevant columns and remove duplicates, then reset the index for clean formatting
+	missing_df = missing_df[df_columns].drop_duplicates().reset_index(drop=True)
+
+	return df_rad_complete, missing_df
 
 def grab_acoes(driver, wait, companhia, trimestre, url):
 	"""
@@ -980,81 +1139,116 @@ def grab_acoes(driver, wait, companhia, trimestre, url):
 	return acoes
 
 def grab_demo_fin(driver, wait, companhia, trimestre, url, df):
-	try:
-		options_to_remove = ['Demonstração das Mutações do Patrimônio Líquido']
+    """
+    Automates data extraction for a specified financial demonstration from a web page using Selenium.
 
-		# Wait for and interact with dropdown menu
-		select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbGrupo']")))
-		Select(select_element).select_by_visible_text(df)
+    Args:
+    - driver: Selenium WebDriver, the browser instance.
+    - wait: WebDriverWait object for handling dynamic content loading.
+    - companhia (str): The name of the company for which data is being fetched.
+    - trimestre (str): The reporting period (quarter) for the data.
+    - url (str): The URL of the page from which data is being fetched.
+    - df (str): The type of financial demonstration to fetch, e.g., "DFs Individuais".
 
-		# Wait for and interact with the second dropdown menu
-		select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbQuadro']")))
+    Returns:
+    - pd.DataFrame: A DataFrame containing the fetched data; returns an empty DataFrame if an error occurs.
+    """
+    try:
+        # Define financial demonstrations to exclude from the extraction process
+        options_to_remove = ['Demonstração das Mutações do Patrimônio Líquido']
 
-		# Get all available options
-		select = Select(select_element)
-		options = select.options
-		option_texts = [option.text for option in options if option.text not in options_to_remove]
+        # Wait and select the desired financial demonstration type from the dropdown
+        select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbGrupo']")))
+        Select(select_element).select_by_visible_text(df)
 
-		dados = []
-		for option in option_texts:
-			try:
-				select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbQuadro']")))
-				Select(select_element).select_by_visible_text(option)
+        # Wait for the second dropdown to become clickable and interact with it
+        select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbQuadro']")))
+        select = Select(select_element)
+        
+        # Filter out options to remove and compile a list of demonstrations to process
+        options = select.options
+        option_texts = [option.text for option in options if option.text not in options_to_remove]
 
-				partial = grab_demo_det(driver, wait, companhia, trimestre, url, option, df)
-				dados.append(partial)
-			except Exception as e:
-				pass
-		# Preparing the output list
-		dfs = pd.concat(dados, ignore_index=True)  # Set ignore_index=True to reset the index
+        # Collect data for each available demonstration option
+        dados = []
+        for option in option_texts:
+            try:
+                select_element = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='cmbQuadro']")))
+                Select(select_element).select_by_visible_text(option)
 
-	except Exception as e:
-		dfs = pd.DataFrame(columns=b3.columns['acoes'])
+                # Grab detailed demonstration data for each option
+                partial = grab_demo_det(driver, wait, companhia, trimestre, url, option, df)
+                dados.append(partial)
+            except Exception as inner_exception:
+                # Log or handle specific demonstration option fetch error
+                pass
+        
+        # Concatenate all fetched data into a single DataFrame
+        dfs = pd.concat(dados, ignore_index=True)  # Resets index in the concatenated DataFrame
+    except Exception as outer_exception:
+        # Handle any errors that occur during the fetch process, returning an empty DataFrame
+        dfs = pd.DataFrame(columns=b3.columns['acoes'])
 
-	return dfs
+    return dfs
 
 def grab_demo_det(driver, wait, companhia, trimestre, url, option, df):
-	try:
-		# Switch to the relevant iframe to access the table
-		iframe_element = driver.find_element(By.ID, "iFrameFormulariosFilho")
-		driver.switch_to.frame(iframe_element)
+    """
+    Fetches detailed financial data for a given company and quarter from a web page, based on a specific demonstration option.
 
-		# Locate and read the table into a DataFrame
-		table = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_cphPopUp_tbDados"]')))
-		table = driver.find_element(By.XPATH, '//*[@id="ctl00_cphPopUp_tbDados"]')
-		dados = pd.read_html(table.get_attribute('outerHTML'), skiprows=[0], converters={2: lambda x: x.replace('.', '')})[0]
-		dados = dados.iloc[:, :3]
-		dados.columns = b3.columns['acoes'][2:5]
-		dados['conta'] = dados['conta'].astype(str)
-		dados['valor'] = dados['valor'].fillna(0).astype(int)
-		dados['companhia'] = companhia
-		dados['trimestre'] = trimestre
-		dados['url'] = url
+    Args:
+    - driver: Selenium WebDriver instance for browser automation.
+    - wait: WebDriverWait object for managing dynamic content.
+    - companhia (str): Name of the company.
+    - trimestre (str): Reporting quarter.
+    - url (str): URL of the financial report page.
+    - option (str): The specific financial demonstration option to fetch.
+    - df (str): The type of financial report (e.g., "DFs Individuais").
 
-		# unidade
-		element_text = driver.find_element(By.XPATH, '//*[@id="TituloTabelaSemBorda"]').text
-		result = re.search(r'\((.*?)\)', element_text)
-		if result:
-			unidade = result.group(1)
-		else:
-			unidade = 'UNIDADE'
-		dados['unidade'] = unidade
+    Returns:
+    - pd.DataFrame: A DataFrame containing the extracted data for the specified financial demonstration option.
+    """
+    try:
+        # Access the iframe containing the financial data table
+        iframe_element = driver.find_element(By.ID, "iFrameFormulariosFilho")
+        driver.switch_to.frame(iframe_element)
 
-		# Check if 'mil' is in the 'unidade' column and other adjustments
-		dados['valor'] = dados.apply(lambda row: row['valor'] * 1000 if 'Mil' in row['unidade'] else row['valor'], axis=1)
-		dados['unidade'] = dados.apply(lambda row: 'UNIDADE' if 'Mil' in row['unidade'] else row['unidade'], axis=1)
-		dados['demo_det'] = option
-		dados['demo_fin'] = df
+        # Locate the data table and convert it into a DataFrame
+        table_element = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_cphPopUp_tbDados"]')))
+        dados = pd.read_html(table_element.get_attribute('outerHTML'), skiprows=[0])[0]
+        
+        # Keep only the first three columns and rename them according to predefined schema
+        dados = dados.iloc[:, :3]
+        dados.columns = b3.columns['acoes'][2:5]
 
-	except Exception as e:
-		dados = pd.DataFrame(columns=b3.columns['acoes'])
-	
-	finally:
-		# Ensure driver switches back to the default content
-		driver.switch_to.default_content()
+        # Clean and format data columns
+        dados['conta'] = dados['conta'].astype(str)
+        dados['valor'] = dados['valor'].fillna(0).astype(int)
+        dados['companhia'] = companhia
+        dados['trimestre'] = trimestre
+        dados['url'] = url
 
+        # Extract measurement unit from the table title and adjust the 'valor' column accordingly
+        unidade_element_text = driver.find_element(By.XPATH, '//*[@id="TituloTabelaSemBorda"]').text
+        unidade = re.search(r'\((.*?)\)', unidade_element_text).group(1) if re.search(r'\((.*?)\)', unidade_element_text) else 'UNIDADE'
+        dados['unidade'] = unidade
 
-	return dados[b3.columns['acoes']]
+        # Apply conversion if 'mil' is present in the unit
+        dados['valor'] = dados.apply(lambda row: row['valor'] * 1000 if 'Mil' in row['unidade'] else row['valor'], axis=1)
+        dados['unidade'] = dados['unidade'].replace({'.*Mil.*': 'UNIDADE'}, regex=True)
+
+        # Assign the demonstration option and financial report type to the DataFrame
+        dados['demo_det'] = option
+        dados['demo_fin'] = df
+
+    except Exception as e:
+        # Return an empty DataFrame with predefined columns in case of an error
+        dados = pd.DataFrame(columns=b3.columns['acoes'])
+
+    finally:
+        # Revert to the main content of the page after processing the iframe
+        driver.switch_to.default_content()
+
+    return dados
 
 # OTHER TO ORGANIZE
 

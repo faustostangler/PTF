@@ -18,8 +18,9 @@ columns = {}
 columns['acoes'] = ['companhia', 'trimestre', 'conta', 'descrição', 'valor', 'unidade', 'demo_det', 'demo_fin', 'url']
 columns['rad'] = ['companhia', 'trimestre', 'conta', 'descrição', 'valor', 'unidade', 'demo_det', 'demo_fin', 'url']
 columns['nsd'] = ['companhia', 'trimestre', 'versao', 'dri', 'dri2', 'dre', 'auditor', 'auditor_rt', 'cancelamento', 'protocolo', 'envio', 'url', 'nsd']
-columns['companies'] = ['pregao', 'company_name', 'cvm', 'listagem', 'ticker', 'tickers', 'asin', 'cnpj', 'site', 'setor', 'subsetor', 'segmento', 'atividade', 'escriturador', 'stock_holders', 'url']
-columns['tickers'] = ['ticker', 'company_name', 'pregao', 'listagem']
+columns['companies'] = ['companhia', 'pregao', 'cvm', 'listagem', 'ticker', 'tickers', 'asin', 'cnpj', 'site', 'setor', 'subsetor', 'segmento', 'atividade', 'escriturador', 'stock_holders', 'url']
+columns['tickers'] = ['companhia', 'ticker', 'pregao', 'listagem']
+columns['cvm_filelist'] = ['filename', 'date']
 
 conta_acoes = [
     ['0.01.01', 'Ações ON'], 
@@ -35,7 +36,9 @@ url = {}
 url['nsd_pre'] = f'https://www.rad.cvm.gov.br/ENET/frmGerenciaPaginaFRE.aspx?NumeroSequencialDocumento='
 url['nsd_pos'] = f'&CodigoTipoInstituicao=1'
 url['b3_search'] = f'https://sistemaswebb3-listados.b3.com.br/listedCompaniesPage/search?language=pt-br' 
+url['dados_abertos_cvm'] = f'https://dados.cvm.gov.br/dados/CIA_ABERTA/'
 
+visited_subfolders = set()
 
 abbreviations_dict = {
     "NM": "Cia. Novo Mercado",

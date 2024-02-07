@@ -30,6 +30,7 @@ for i in range(100):
             value = periodic_task()  
 
             print(value)
+            print(i, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), e)
     except Exception as e:
         print(i, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), e)
         pass

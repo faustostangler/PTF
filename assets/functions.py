@@ -65,6 +65,9 @@ def load_system(value):
 	# df_rad = load_parquet('rad')
 	# print('fast debug df_rad')
 
+	# Re-download any incomplete sheets in the newly grabbed data
+	df_rad = regrab_web(df_rad)  # Assumes 'regrab_web' checks and re-downloads incomplete data
+
 	return value
 
 
@@ -878,9 +881,6 @@ def load_rad(df_nsd, df_rad=''):
         # Download data for the new RAD items
         df_rad_web = grab_rad(df_rad, new_items)  # Assumes 'grab_rad' fetches RAD data for given items
 
-        # Re-download any incomplete sheets in the newly grabbed data
-        df_rad_web = regrab_web(df_rad_web)  # Assumes 'regrab_web' checks and re-downloads incomplete data
-
         # Concatenate the original and new data, remove duplicates, then save the updated dataset
         df_rad = pd.concat([df_rad, df_rad_web], ignore_index=True).drop_duplicates()
         df_rad = save_parquet(df_rad, 'rad')  # Assumes 'save_parquet' saves the DataFrame and returns the updated DataFrame
@@ -968,7 +968,7 @@ def grab_rad(df_rad, new_items):
 			print(remaining_time(start_time, size, j), companhia, trimestre, )
 
 			# partial save
-			if (size - i - 1) % b3.bin_size == 0:
+			if (size - i - 1) % (b3.bin_size) == 0:
 				df_web = pd.concat(rad_web, ignore_index=True)
 				df_rad_web = pd.concat([df_rad_web, df_web], ignore_index=True)
 				rad_web = []
